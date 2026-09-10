@@ -86,9 +86,20 @@ function buildBot(token: string): Bot {
   });
 
   bot.on("callback_query:data", async (ctx) => {
-    if (!ctx.chat) return await ctx.answerCallbackQuery();
+    if (!ctx.chat) {
+      try { await ctx.answerCallbackQuery(); } catch { /* noop */ }
+      return;
+    }
     const state = getState(ctx.chat.id, ctxMeta(ctx));
-    const res = await handleCallback(state, ctx.callbackQuery.data);
+    let res: Awaited<ReturnType<typeof handleCallback>> = {};
+    try {
+      res = await handleCallback(state, ctx.callbackQuery.data);
+    } catch (e: any) {
+      console.error("handleCallback error:", e && e.stack || e);
+    }
+    try {
+      await ctx.answerCallbackQuery();
+    } catch { /* noop */ }
     if (res.edit) {
       try {
         const hasInline = res.edit.replyMarkup?.inline_keyboard?.length > 0;
@@ -99,21 +110,9 @@ function buildBot(token: string): Bot {
       } catch {
         // сообщение не изменилось — ок
       }
-    } else {
-      try {
-        await ctx.answerCallbackQuery();
-      } catch {
-        // noop
-      }
     }
     if (res.answer) {
       await safeReply(ctx, res.answer);
-    } else if (!res.edit) {
-      try {
-        await ctx.answerCallbackQuery();
-      } catch {
-        // noop
-      }
     }
   });
 

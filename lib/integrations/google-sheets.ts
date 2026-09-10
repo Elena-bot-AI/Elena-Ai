@@ -21,22 +21,66 @@ export async function appendSurveyResponse(row: SurveySheetRow): Promise<{ ok: b
     return { ok: false, error: "GOOGLE_APPS_SCRIPT_WEBHOOK not set — skip save" };
   }
   try {
-    const res = await fetch(URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(row),
-    });
-    const txt = await res.text();
-    let data: any = { raw: txt };
+    const json = JSON.stringify(row);
+    const urlWithQuery = URL + (URL.includes("?") ? "&" : "?") + "payload=" + encodeURIComponent(json);
+
+    let lastRes: any = null;
+    let lastErr: string | null = null;
+
+    // Strategy 1: GET with payload in query string (most reliable for Apps Script Web Apps)
     try {
-      data = JSON.parse(txt);
-    } catch {
-      data = { raw: txt };
+      const res = await fetch(urlWithQuery, {
+        method: "GET",
+        redirect: "follow",
+        headers: { Accept: "application/json, text/plain, */*" },
+      });
+      const txt = await res.text();
+      lastRes = { http: res.status, body: txt, method: "GET" };
+      if (res.status >= 200 && res.status < 300 && txt && !txt.startsWith("<!doctype") && !txt.startsWith("<!DOCTYPE")) {
+        let data: any = { raw: txt };
+        try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+        if (!data || data.ok === true) {
+          return { ok: true, raw: data };
+        }
+      }
+    } catch (e: any) {
+      lastErr = e && e.message ? e.message : String(e);
     }
-    if (data && data.ok === true) {
-      return { ok: true, raw: data };
+
+    // Strategy 2: POST form-urlencoded payload=<json> (fallback if GET fails)
+    try {
+      const body = "payload=" + encodeURIComponent(json);
+      const res = await fetch(URL, {
+        method: "POST",
+        redirect: "follow",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          Accept: "application/json, text/plain, */*",
+        },
+        body,
+      });
+      const txt = await res.text();
+      lastRes = { http: res.status, body: txt, method: "POST-form" };
+      if (res.status >= 200 && res.status < 300 && txt && !txt.startsWith("<!doctype") && !txt.startsWith("<!DOCTYPE")) {
+        let data: any = { raw: txt };
+        try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+        return { ok: data?.ok === true || !data?.error, raw: data };
+      }
+    } catch (e: any) {
+      lastErr = e && e.message ? e.message : String(e);
     }
-    return { ok: false, error: (data && data.error) || `HTTP ${res.status}`, raw: data };
+
+    return {
+      ok: false,
+      error:
+        lastErr ||
+        (lastRes && lastRes.body && lastRes.body.startsWith("<!doctype"))
+          ? "Apps Script returned Google sign-in page — Web App permission must be set to 'Anyone, even anonymous' (Manage Deployments → Who has access)."
+          : lastRes
+            ? `HTTP ${lastRes.http} via ${lastRes.method}`
+            : "Unknown error",
+      raw: lastRes,
+    };
   } catch (e: any) {
     return { ok: false, error: e && e.message ? e.message : String(e) };
   }

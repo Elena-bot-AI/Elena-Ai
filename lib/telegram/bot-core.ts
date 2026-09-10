@@ -294,6 +294,21 @@ export async function handleCallback(
     return { edit };
   }
 
+  // BUG FIX 2026-09-10: __select MUST be checked BEFORE generic obj block
+  // otherwise obj:stepId:__select:field:value hits step.objectSchema[key]=__select... (undefined) and returns {}
+  if (kind === "obj" && stepId && state.session.currentStepId === stepId && key.startsWith("__select:")) {
+    const pieces = key.split(":");
+    const fieldName = pieces[1];
+    const value = pieces.slice(2).join(":");
+    const step = currentStep(state);
+    const schema = step.objectSchema?.[fieldName];
+    if (schema?.kind === "select") {
+      state.objectBuffer[fieldName] = value;
+    }
+    state.objectCurrentField = undefined;
+    return { edit: { text: currentStep(state).question, replyMarkup: replyMarkupFor(state, currentStep(state)) } };
+  }
+
   if (kind === "obj" && stepId && state.session.currentStepId === stepId) {
     const step = currentStep(state);
     if (key === "__noop__") return {};
@@ -335,17 +350,6 @@ export async function handleCallback(
         parseMode: "MarkdownV2",
       },
     };
-  }
-
-  if (kind === "obj" && key.startsWith("__select:")) {
-    const [_s, fieldName, value] = key.split(":").slice(1);
-    const step = currentStep(state);
-    const schema = step.objectSchema?.[fieldName];
-    if (schema?.kind === "select") {
-      state.objectBuffer[fieldName] = value;
-    }
-    state.objectCurrentField = undefined;
-    return { edit: { text: currentStep(state).question, replyMarkup: replyMarkupFor(state, currentStep(state)) } };
   }
 
   return {};
