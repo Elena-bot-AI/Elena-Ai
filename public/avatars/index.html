@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Аватары для Telegram-бота</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(180deg, #fff7f2 0%, #ffffff 60%, #eff6ff 100%);
+    color: #0f172a;
+  }
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 32px; margin: 0 0 4px; }
+  p.sub { margin: 0; color: #6b7280; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 14px; border-radius: 12px;
+    text-decoration: none; color: #fff; font-weight: 700; font-size: 14px;
+    border: none; cursor: pointer;
+  }
+  .btn.blue   { background: #2563eb; }
+  .btn.dark  { background: #0f172a; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 14px;
+    box-shadow: 0 4px 16px rgba(17,24,39,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card h3 { margin: 0; font-size: 15px; color: #0f172a; font-weight: 800; }
+  .frame {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: conic-gradient(from 210deg at 50% 50%, #ffd9e2 0%, #e0f2fe 45%, #ecfeff 70%, #fde68a 100%);
+  }
+  .frame img {
+    width: 100%; height: 100%; display: block; object-fit: cover; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 13px;
+  }
+  .meta {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 12px;
+  }
+  .howto {
+    margin-top: 40px;
+    padding: 20px;
+    border-radius: 16px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #7c2d12;
+  }
+  .howto b { color: #9a3412; }
+  .howto ol { margin: 8px 0 0 20px; padding: 0; line-height: 1.65; }
+  .howto a { color: #9a3412; }
+</style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>🌷 5 аватаров для Telegram-бота</h1>
+        <p class="sub">Статическая страничка — без Next/SSR, картинки грузятся сразу. Все JPG 1832×1832.</p>
+      </div>
+      <div class="actions">
+        <a class="btn blue" href="./index.html">🔄 Обновить</a>
+        <a class="btn dark" href="https://t.me/BotFather" target="_blank" rel="noreferrer">↗ Открыть @BotFather</a>
+      </div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <h3>1 · Лотос (минимализм, доверие)</h3>
+        <div class="frame"><a href="./avatar1-lotus.jpg" target="_blank"><img src="./avatar1-lotus.jpg" alt="Лотос" /></a></div>
+        <div class="row">
+          <a class="btn" style="background:#0f766e" href="./avatar1-lotus.jpg" download>⬇ Скачать JPG</a>
+          <span class="pill">1832×1832</span>
+        </div>
+        <div class="meta">📁 Файл: public/avatars/avatar1-lotus.jpg</div>
+      </div>
+
+      <div class="card">
+        <h3>2 · Ромашка (нежный градиент) — рекомендую ✨</h3>
+        <div class="frame"><a href="./avatar2-petals.jpg" target="_blank"><img src="./avatar2-petals.jpg" alt="Ромашка градиент" /></a></div>
+        <div class="row">
+          <a class="btn" style="background:#db2777" href="./avatar2-petals.jpg" download>⬇ Скачать JPG</a>
+          <span class="pill">1832×1832</span>
+        </div>
+        <div class="meta">📁 Файл: public/avatars/avatar2-petals.jpg</div>
+      </div>
+
+      <div class="card">
+        <h3>3 · Стетоскоп + бабочка (мед.тема)</h3>
+        <div class="frame"><a href="./avatar3-stethoscope.jpg" target="_blank"><img src="./avatar3-stethoscope.jpg" alt="Стетоскоп бабочка" /></a></div>
+        <div class="row">
+          <a class="btn" style="background:#0f766e" href="./avatar3-stethoscope.jpg" download>⬇ Скачать JPG</a>
+          <span class="pill">1832×1832</span>
+        </div>
+        <div class="meta">📁 Файл: public/avatars/avatar3-stethoscope.jpg</div>
+      </div>
+
+      <div class="card">
+        <h3>4 · Полумесяц + бутоны (баланс)</h3>
+        <div class="frame"><a href="./avatar4-moon.jpg" target="_blank"><img src="./avatar4-moon.jpg" alt="Полумесяц бутоны" /></a></div>
+        <div class="row">
+          <a class="btn" style="background:#0f766e" href="./avatar4-moon.jpg" download>⬇ Скачать JPG</a>
+          <span class="pill">1832×1832</span>
+        </div>
+        <div class="meta">📁 Файл: public/avatars/avatar4-moon.jpg</div>
+      </div>
+
+      <div class="card">
+        <h3>5 · Дерево жизни (мудрость 45+)</h3>
+        <div class="frame"><a href="./avatar5-tree.jpg" target="_blank"><img src="./avatar5-tree.jpg" alt="Дерево жизни" /></a></div>
+        <div class="row">
+          <a class="btn" style="background:#0f766e" href="./avatar5-tree.jpg" download>⬇ Скачать JPG</a>
+          <span class="pill">1832×1832</span>
+        </div>
+        <div class="meta">📁 Файл: public/avatars/avatar5-tree.jpg</div>
+      </div>
+    </section>
+
+    <section class="howto">
+      <div style="font-weight:800;color:#9a3412;margin-bottom:6px;">💡 Как поставить аву в Telegram-бот:</div>
+      <ol>
+        <li>Жми <b>«⬇ Скачать JPG</b> на любой карточке (лучше всего — №2 ✨)</li>
+        <li>Открой <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather</a> → <code>/mybots</code> → выбери бот «ИИ бот» (token 8334659815)</li>
+        <li>Жми <b>Edit Bot → Edit Botpic</b> → пришли скачанный JPG → готово ✨</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>

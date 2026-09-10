@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg2" cx="50%" cy="45%" r="72%">
+      <stop offset="0%" stop-color="#fff1f2"/>
+      <stop offset="40%" stop-color="#fecdd3"/>
+      <stop offset="75%" stop-color="#bae6fd"/>
+      <stop offset="100%" stop-color="#ccfbf1"/>
+    </radialGradient>
+    <linearGradient id="petals2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="url(#bg2)"/>
+  <g transform="translate(256 256)">
+    <g fill="url(#petals2)" opacity="0.95">
+      <g>
+        <ellipse cx="0" cy="-110" rx="48" ry="72"/>
+        <ellipse cx="0" cy="110" rx="48" ry="72"/>
+        <ellipse cx="-110" cy="0" rx="72" ry="48"/>
+        <ellipse cx="110" cy="0" rx="72" ry="48"/>
+        <ellipse cx="-78" cy="-78" rx="48" ry="64" transform="rotate(-45 -78 -78)"/>
+        <ellipse cx="78" cy="-78" rx="48" ry="64" transform="rotate(45 78 -78)"/>
+        <ellipse cx="-78" cy="78" rx="48" ry="64" transform="rotate(45 -78 78)"/>
+        <ellipse cx="78" cy="78" rx="48" ry="64" transform="rotate(-45 78 78)"/>
+      </g>
+    </g>
+    <g fill="#fde68a" opacity="0.8">
+      <circle cx="0" cy="0" r="60" />
+    </g>
+    <g transform="translate(0 0)">
+      <path d="M-26,-8 C-18,-24 18,-24 26,-8 C18,10 -18,10 -26,-8 Z" fill="#f97316"/>
+      <path d="M-26,-8 C-18,-24 18,-24 26,-8 C18,10 -18,10 -26,-8 Z" transform="rotate(72)" fill="#f97316"/>
+      <path d="M-26,-8 C-18,-24 18,-24 26,-8 C18,10 -18,10 -26,-8 Z" transform="rotate(144)" fill="#f97316"/>
+      <path d="M-26,-8 C-18,-24 18,-24 26,-8 C18,10 -18,10 -26,-8 Z" transform="rotate(216)" fill="#f97316"/>
+      <path d="M-26,-8 C-18,-24 18,-24 26,-8 C18,10 -18,10 -26,-8 Z" transform="rotate(288)" fill="#f97316"/>
+    </g>
+    <path d="M-14,10 C-6,20 6,20 14,10 C12,-4 -12,-4 -14,10 Z" fill="#ef4444"/>
+  </g>
+  <g opacity="0.55">
+    <circle cx="80" cy="100" r="5" fill="#fff"/>
+    <circle cx="440" cy="120" r="6" fill="#fff"/>
+    <circle cx="430" cy="410" r="4" fill="#fff"/>
+    <circle cx="90" cy="430" r="6" fill="#fff"/>
+  </g>
+</svg>
