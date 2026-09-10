@@ -1,5 +1,5 @@
 import type { SessionState, Step, Answer } from "@/types/bot";
-import { advance, asBoolean, asMulti, asNumber, asObject, asText, createInitialState } from "@/lib/engine/engine";
+import { advance, asBoolean, asMulti, asNumber, asObject, asText, createInitialState, sessionToFlat24Answers } from "@/lib/engine/engine";
 import { STEPS, STEP_FOLLOWUP } from "@/lib/engine/steps";
 import { paraphraseVerdict, answerFollowup, isLlmAvailable } from "@/lib/llm";
 import { appendSurveyResponse, type SurveySheetRow } from "@/lib/integrations/google-sheets";
@@ -384,8 +384,9 @@ async function doAdvance(state: TgUserState, ans: Answer): Promise<TgResponseMes
           step_count: state.session.completedStepIds.length,
           is_final: true,
           verdict_tag: (res.verdict as any).tag || (res.verdict!.tags || []).join(",") || "final",
-          answers: (state.session as any).answers || state.session,
-          summary: res.verdict!.summary,
+          answers: (state.session as any).answers || undefined,
+          flat_answers_24: sessionToFlat24Answers(state.session),
+          summary_engine: res.verdict!.summary,
           llm_paraphrase: llmText,
         };
         const r = await appendSurveyResponse(row);

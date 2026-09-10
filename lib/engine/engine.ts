@@ -321,5 +321,114 @@ function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
+function yn(v: YesNo | boolean | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  return v === true ? "Да" : "Нет";
+}
+
+function labelListTrue(target: Record<string, boolean>, mapping: [string, string][]): string {
+  const labels: string[] = [];
+  for (const [k, lbl] of mapping) if (target[k]) labels.push(lbl);
+  if (labels.length === 0) return "Нет";
+  return labels.join(", ");
+}
+
+/**
+ * Преобразует SessionState в 24 человекочитаемых ответа (по порядку STEP_ORDER).
+ * Ключи = stepId (age, menopause_age, ..., varicose), значения = строки для Гугл-таблицы.
+ */
+export function sessionToFlat24Answers(s: SessionState): Record<string, string> {
+  const r: Record<string, string> = {};
+
+  r["age"] = typeof s.age === "number" ? String(s.age) : "";
+  r["menopause_age"] = typeof s.menopauseAge === "number" ? String(s.menopauseAge) : "";
+  r["hot_flashes"] = yn(s.hotFlashes);
+  r["vaginal_dryness"] = yn(s.vaginalDryness);
+  r["dyspareunia"] = yn(s.dyspareunia);
+  r["sex_avoidance"] = yn(s.sexAvoidance);
+
+  if (s.gums) {
+    r["gums"] = labelListTrue(s.gums as unknown as Record<string, boolean>, [
+      ["frequent_painless", "Учащённое безболезненное мочеиспускание"],
+      ["frequent_painful", "Учащённое болезненное мочеиспускание (цистит)"],
+      ["difficult", "Затруднённое мочеиспускание"],
+      ["nocturia_gt1", "Ноктурия >1 раза"],
+      ["stress_incontinence", "Стрессовое недержание мочи"],
+      ["frequent_cystitis", "Частые циститы"],
+      ["vulvar_discomfort", "Дискомфорт вульвы/зуд/жжение/сухость"],
+    ]);
+  } else {
+    r["gums"] = "";
+  }
+
+  if (s.body) {
+    const b = s.body;
+    const actMap: Record<string, string> = { low: "Низкая", moderate: "Умеренная", high: "Высокая" };
+    const pieces = [
+      typeof b.heightCm === "number" ? `Рост ${b.heightCm}` : "",
+      typeof b.weightKg === "number" ? `Вес ${b.weightKg}` : "",
+      typeof s.bmi === "number" ? `ИМТ ${s.bmi}` : "",
+      b.smoking === true ? "Курит" : b.smoking === false ? "Не курит" : "",
+      b.diabetes === true ? "Сахарный диабет" : b.diabetes === false ? "СД: нет" : "",
+      typeof b.physicalActivity === "string" ? `Активность: ${actMap[b.physicalActivity] || b.physicalActivity}` : "",
+    ].filter(Boolean);
+    r["body"] = pieces.join(" / ");
+  } else {
+    r["body"] = "";
+  }
+
+  r["endometrium_usg"] = labelListTrue(s.absoluteContraindications, [
+    ["endometrial_hyperplasia", "Гиперплазия эндометрия"],
+    ["endometrial_polyp", "Полип эндометрия"],
+    ["submucosal_myoma", "Субмукозная миома"],
+  ]);
+  r["unexplained_pain"] = yn(s.absoluteContraindications.unexplained_abdominal_pain);
+  r["mht_allergy"] = yn(s.absoluteContraindications.mht_hypersensitivity);
+  r["cancers_1"] = labelListTrue(s.absoluteContraindications, [
+    ["breast_cancer_current", "Текущий РМЖ"],
+    ["breast_cancer_history", "Анамнез РМЖ"],
+    ["endometrial_cancer", "Рак эндометрия"],
+    ["gyn_cancer", "Иные гинекологические опухоли"],
+  ]);
+  r["porphyria"] = yn(s.absoluteContraindications.hepatic_porphyria);
+  r["endometriosis"] = yn(s.absoluteContraindications.endometriosis);
+  r["undiagnosed_bleeding"] = yn(s.absoluteContraindications.undiagnosed_genital_bleeding);
+  r["breast_cancer_detail"] = yn(s.oncoMonitoring.breast_cancer_monitoring);
+  r["gyn_cancer_detail"] = yn(s.oncoMonitoring.gyn_onco_monitoring);
+  r["liver"] = labelListTrue(s.absoluteContraindications, [
+    ["active_liver_disease", "Активное заболевание печени"],
+    ["liver_tumors", "Опухоли печени"],
+  ]);
+  r["thrombosis_cv"] = labelListTrue(s.absoluteContraindications, [
+    ["vt_history", "ВТ/ТЭЛА анамнез"],
+    ["vt_current", "Острый ВТ/ТЭЛА"],
+    ["cvd", "ИБС/инфаркт/инсульт"],
+    ["uncontrolled_hypertension", "Неконтролируемая АГ"],
+  ]);
+  r["risks_1"] = labelListTrue(s.riskFactors, [
+    ["early_menopause_age", "Ранняя менопауза"],
+    ["low_bmd_or_fracture", "Остеопения/переломы"],
+    ["family_breast_cancer", "Семейный РМЖ"],
+    ["dyslipidemia", "Дислипидемия"],
+    ["hypertension_controlled", "Контролируемая АГ"],
+    ["diabetes_type_2", "СД 2 типа"],
+    ["varicose_veins", "Варикоз вен"],
+    ["migraine_with_aura", "Мигрень с аурой"],
+  ]);
+  r["onco_monitoring"] = labelListTrue(s.oncoMonitoring, [
+    ["breast_cancer_monitoring", "РМЖ наблюдение"],
+    ["gyn_onco_monitoring", "Гин. онко наблюдение"],
+  ]);
+  r["onco_negative"] = labelListTrue(s.oncoNegativeEffect, [
+    ["endometrial_cancer_risk", "Риск РЭ (МГТ без гестагена)"],
+    ["breast_cancer_risk_5yr", "Риск РМЖ (системная МГТ>5л)"],
+    ["vt_risk_first_year", "Риск ВТ первый год"],
+  ]);
+  r["lipid"] = yn(s.riskFactors.dyslipidemia);
+  r["varicose"] = yn(s.riskFactors.varicose_veins);
+
+  return r;
+}
+
 export { buildVerdict };
 export type { Verdict, Indications };

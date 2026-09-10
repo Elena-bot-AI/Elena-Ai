@@ -5,9 +5,10 @@ export interface SurveySheetRow {
   session_id: string;
   step_count: number;
   is_final: boolean;
-  verdict_tag: string;
-  answers: Record<string, any>;
-  summary: string;
+  verdict_tag?: string;
+  answers?: Record<string, any>;
+  flat_answers_24: Record<string, string>;
+  summary_engine: string;
   llm_paraphrase?: string;
 }
 
