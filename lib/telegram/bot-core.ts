@@ -102,7 +102,7 @@ export function askNext(state: TgUserState): TgResponseMessage {
     // Sub-step 2: Во сколько лет наступила?
     if (state.menopauseSubStep === "ask_age") {
       return {
-        text: "Шаг 2 из 24\n\nВо сколько лет у вас наступила менопауза?\n\nВведите возраст числом, например: 51.",
+        text: "Шаг 2 из 24\n\nВо сколько лет у вас наступила менопауза?\n\nЕсли последняя менструация была менее 12 мес назад, то введите свой возраст.\nВведите возраст числом, например: 51.",
       };
     }
   }
@@ -225,11 +225,25 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
 
   const step = currentStep(state);
 
-  // --- Custom Step 2 (menopause_age): 2-sub-step handler ---
   if (step.id === "menopause_age") {
-    // Sub-step 1 answer: Да/Ещё нет
+    // Sub-step 1 answer: Да/Ещё нет (кнопки или текст)
     if (!state.menopauseSubStep || state.menopauseSubStep === "ask_started") {
-      const isStarted = text.startsWith("Да") || text.toLowerCase().includes("да");
+      const isStarted =
+        text.startsWith("Да") ||
+        text.toLowerCase().includes("да") ||
+        text.toLowerCase().includes("уже наступила") ||
+        text.toLowerCase().includes("наступила");
+      const isNotStarted =
+        text.startsWith("Ещё нет") ||
+        text.toLowerCase().includes("ещё нет") ||
+        text.toLowerCase().includes("менструации идут") ||
+        text.toLowerCase().includes("идут");
+
+      // Если это не кнопка Да/Нет — может быть опечатка, показываем снова
+      if (!isStarted && !isNotStarted) {
+        return [askNext(state)];
+      }
+
       state.menopauseStartedValue = isStarted;
       state.session.menopauseStarted = isStarted;
       if (isStarted) {
