@@ -58,6 +58,8 @@ export function advance(state: SessionState, answer: Answer): StepResult {
     }
     case STEP_MENOPAUSE_AGE: {
       s.menopauseAge = asNumber(answer);
+      // Default menopauseStarted = true (если ответ пришёл через engine без step2 sub-step (Vercel API HTTP и т.д.))
+      if (s.menopauseStarted === undefined) s.menopauseStarted = true;
       if (typeof s.age === "number" && typeof s.menopauseAge === "number") {
         s.menopauseDurationYears = Math.max(0, s.age - s.menopauseAge);
         s.menopauseType = computeMenopauseType(s.menopauseAge);
@@ -342,6 +344,8 @@ export function sessionToFlat24Answers(s: SessionState): Record<string, string> 
   const r: Record<string, string> = {};
 
   r["age"] = typeof s.age === "number" ? String(s.age) : "";
+  r["menopause_started"] =
+    (s as any).menopauseStarted === true ? "Да" : (s as any).menopauseStarted === false ? "Ещё нет" : "";
   r["menopause_age"] = typeof s.menopauseAge === "number" ? String(s.menopauseAge) : "";
   r["hot_flashes"] = yn(s.hotFlashes);
   r["vaginal_dryness"] = yn(s.vaginalDryness);

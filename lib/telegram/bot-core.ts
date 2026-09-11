@@ -20,6 +20,8 @@ export interface TgUserState {
   tgUsername?: string;
   tgFirstName?: string;
   savedFinalOnce?: boolean;
+  menopauseSubStep?: "ask_started" | "ask_age";
+  menopauseStartedValue?: boolean;
 }
 
 const store = new Map<TgChatId, TgUserState>();
@@ -83,6 +85,30 @@ export function askNext(state: TgUserState): TgResponseMessage {
     };
   }
   const step = currentStep(state);
+
+  // --- Step 2 (menopause_age) — custom 2-sub-step flow ---
+  if (step.id === "menopause_age") {
+    // Sub-step 1: Менопауза уже наступила? Да/Нет
+    if (!state.menopauseSubStep || state.menopauseSubStep === "ask_started") {
+      return {
+        text: "*Шаг 2 из 24*\n\nМенопауза уже наступила?\n\n💡 Менопауза — 12 месяцев подряд без менструаций.",
+        parseMode: "MarkdownV2",
+        replyMarkup: {
+          keyboard: [[{ text: "Да, уже наступила" }, { text: "Ещё нет, менструации идут" }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      };
+    }
+    // Sub-step 2: Во сколько лет наступила?
+    if (state.menopauseSubStep === "ask_age") {
+      return {
+        text: "*Шаг 2 из 24*\n\nВо сколько лет у вас наступила менопауза?\n\nВведите возраст числом, например: `51`.",
+        parseMode: "MarkdownV2",
+      };
+    }
+  }
+
   const intro = `*${escapeMd(step.title || step.id)}*\n\n`;
   const q = escapeMd(step.question);
   const help = step.helpText ? `\n\n💡 ${escapeMd(step.helpText)}` : "";
@@ -200,6 +226,46 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
   }
 
   const step = currentStep(state);
+
+  // --- Custom Step 2 (menopause_age): 2-sub-step handler ---
+  if (step.id === "menopause_age") {
+    // Sub-step 1 answer: Да/Ещё нет
+    if (!state.menopauseSubStep || state.menopauseSubStep === "ask_started") {
+      const isStarted = text.startsWith("Да") || text.toLowerCase().includes("да");
+      state.menopauseStartedValue = isStarted;
+      state.session.menopauseStarted = isStarted;
+      if (isStarted) {
+        // Sub-step 2: ask age
+        state.menopauseSubStep = "ask_age";
+        return [askNext(state)];
+      }
+      // Not started (Ещё нет): menopauseAge = current age (duration = 0)
+      if (typeof state.session.age === "number") {
+        state.menopauseSubStep = undefined;
+        return doAdvance(state, { type: "number", value: state.session.age });
+      }
+      // Age missing (shouldn't happen, but safe fallback)
+      state.menopauseSubStep = "ask_age";
+      return [
+        {
+          text: "⚠️ Сначала укажите возраст (шаг 1). Нажмите /reset чтобы начать заново.",
+        },
+      ];
+    }
+    // Sub-step 2 answer: number (age onset)
+    if (state.menopauseSubStep === "ask_age") {
+      const n = parseFloat(text);
+      if (!Number.isFinite(n) || n <= 0 || n > 100) {
+        return [
+          {
+            text: "⚠️ Введите возраст числом (например `51` или `45`).",
+          },
+        ];
+      }
+      state.menopauseSubStep = undefined;
+      return doAdvance(state, { type: "number", value: n });
+    }
+  }
 
   if (state.objectCurrentField) {
     const field = state.objectCurrentField;

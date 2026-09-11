@@ -101,6 +101,7 @@ export interface SessionState {
   sessionId: string;
   currentStepId: string;
   age?: number;
+  menopauseStarted?: boolean;
   menopauseAge?: number;
   menopauseType: MenopauseType;
   menopauseDurationYears?: number;

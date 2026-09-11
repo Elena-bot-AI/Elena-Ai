@@ -46,8 +46,10 @@ export function buildVerdict(s: SessionState): Verdict {
   const menopauseInfo = formatMenopause(s);
   if (menopauseInfo) paragraphs.push(menopauseInfo);
 
-  const indicationsBlock = formatIndications(s);
-  if (indicationsBlock) paragraphs.push(indicationsBlock);
+  if (!s.hasAbsoluteContraindication) {
+    const indicationsBlock = formatIndications(s);
+    if (indicationsBlock) paragraphs.push(indicationsBlock);
+  }
 
   if (riskLabels.length > 0) {
     paragraphs.push("Факторы риска, которые требуют внимания врача (не являются абсолютными противопоказаниями):\n• " + riskLabels.join("\n• "));
@@ -90,26 +92,37 @@ function collectLabelsFromObj(obj: Record<string, boolean>, labels: Record<strin
 
 function formatMenopause(s: SessionState): string | null {
   if (!Number.isFinite(s.age) || !Number.isFinite(s.menopauseAge)) return null;
-  const t = {
+  const typePlain: Record<string, string> = {
+    poi: "Преждевременная менопауза / ПНЯ",
+    early: "Ранняя менопауза",
+    physiologic: "Физиологическая менопауза",
+    late: "Поздняя менопауза",
+    unknown: "Не определено",
+  };
+  const typeWithIndication: Record<string, string> = {
     poi: "Преждевременная менопауза / ПНЯ (абсолютное показание к ЗГТ)",
     early: "Ранняя менопауза (абсолютное показание к ЗГТ)",
     physiologic: "Физиологическая менопауза",
     late: "Поздняя менопауза",
     unknown: "Не определено",
-  }[s.menopauseType];
-  const window =
-    s.therapeuticWindowOpen === true
+  };
+  const typeMap = s.hasAbsoluteContraindication ? typePlain : typeWithIndication;
+  const t = typeMap[s.menopauseType] ?? typePlain.unknown;
+
+  const window = s.hasAbsoluteContraindication
+    ? ""
+    : s.therapeuticWindowOpen === true
       ? "Окно терапевтических возможностей ✅ открыто: возраст ≤ 60 лет ИЛИ стаж менопаузы ≤ 10 лет."
       : s.therapeuticWindowOpen === false
         ? "Окно терапевтических возможностей ⚠️ закрыто: возраст > 60 лет И стаж менопаузы > 10 лет."
         : "";
   const lines = [
-    `Возраст: ${s.age} лет. Возраст наступления менопаузы: ${s.menopauseAge} лет. Стаж менопаузы: ${s.menopauseDurationYears ?? 0} лет.`,
+    `Ваш возраст: ${s.age} лет. Возраст наступления менопаузы: ${s.menopauseAge} лет. Стаж менопаузы: ${s.menopauseDurationYears ?? 0} лет.`,
     t,
   ];
   if (window) lines.push(window);
   if (typeof s.bmi === "number") {
-    lines.push(`ИМТ: ${s.bmi} кг/м² (${bmiCategory(s.bmi)}).`);
+    lines.push(`ИМТ: ${s.bmi.toFixed(2)} кг/м² (${bmiCategory(s.bmi)}).`);
   }
   return lines.join("\n");
 }
