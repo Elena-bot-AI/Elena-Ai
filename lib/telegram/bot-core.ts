@@ -91,8 +91,7 @@ export function askNext(state: TgUserState): TgResponseMessage {
     // Sub-step 1: Менопауза уже наступила? Да/Нет
     if (!state.menopauseSubStep || state.menopauseSubStep === "ask_started") {
       return {
-        text: "*Шаг 2 из 24*\n\nМенопауза уже наступила?\n\n💡 Менопауза — 12 месяцев подряд без менструаций.",
-        parseMode: "MarkdownV2",
+        text: "Шаг 2 из 24\n\nМенопауза уже наступила?\n\n💡 Менопауза — 12 месяцев подряд без менструаций.",
         replyMarkup: {
           keyboard: [[{ text: "Да, уже наступила" }, { text: "Ещё нет, менструации идут" }]],
           resize_keyboard: true,
@@ -103,8 +102,7 @@ export function askNext(state: TgUserState): TgResponseMessage {
     // Sub-step 2: Во сколько лет наступила?
     if (state.menopauseSubStep === "ask_age") {
       return {
-        text: "*Шаг 2 из 24*\n\nВо сколько лет у вас наступила менопауза?\n\nВведите возраст числом, например: `51`.",
-        parseMode: "MarkdownV2",
+        text: "Шаг 2 из 24\n\nВо сколько лет у вас наступила менопауза?\n\nВведите возраст числом, например: 51.",
       };
     }
   }
