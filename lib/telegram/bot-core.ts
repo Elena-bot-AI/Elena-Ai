@@ -123,12 +123,25 @@ function yesNo() {
 function multiToggle(state: TgUserState, step: Step) {
   const options = step.options || [];
   const sel = state.pendingMultiSelections;
-  const rows = options.map((o) => [
+  const regularOptions = options.filter((o) => o.key !== "nothing_selected");
+  const nothingOption = options.find((o) => o.key === "nothing_selected");
+
+  const rows = regularOptions.map((o) => [
     {
       text: (sel[o.key] ? "✅ " : "☐ ") + o.label,
       callback_data: `multi:${step.id}:${o.key}`,
     },
   ]);
+
+  if (nothingOption) {
+    rows.push([
+      {
+        text: (sel["nothing_selected"] ? "✅ " : "☑️ ") + nothingOption.label,
+        callback_data: `multi:${step.id}:nothing_selected`,
+      },
+    ]);
+  }
+
   rows.push([
     { text: "Подтвердить ✓", callback_data: `multi:${step.id}:__ok__` },
     { text: "Очистить всё", callback_data: `multi:${step.id}:__clear__` },
@@ -286,7 +299,25 @@ export async function handleCallback(
       const edit = { text: currentStep(state).question, replyMarkup: replyMarkupFor(state, currentStep(state)) };
       return { edit };
     }
-    state.pendingMultiSelections[key] = !state.pendingMultiSelections[key];
+    // Логика взаимоисключения «nothing_selected» vs любые другие варианты:
+    // 1) Если клик по nothing_selected — снять ВСЕ другие галки
+    if (key === "nothing_selected") {
+      const willToggle = !state.pendingMultiSelections["nothing_selected"];
+      if (willToggle) {
+        // Включаем nothing_selected → очищаем все остальные
+        state.pendingMultiSelections = { nothing_selected: true };
+      } else {
+        // Выключаем nothing_selected → просто убираем его
+        delete state.pendingMultiSelections["nothing_selected"];
+      }
+    } else {
+      // 2) Клики по обычным опциям: если было выбрано nothing_selected — снять его
+      if (state.pendingMultiSelections["nothing_selected"]) {
+        delete state.pendingMultiSelections["nothing_selected"];
+      }
+      state.pendingMultiSelections[key] = !state.pendingMultiSelections[key];
+      if (!state.pendingMultiSelections[key]) delete state.pendingMultiSelections[key];
+    }
     const edit: TgResponseMessage = {
       text: currentStep(state).question,
       replyMarkup: replyMarkupFor(state, currentStep(state)),

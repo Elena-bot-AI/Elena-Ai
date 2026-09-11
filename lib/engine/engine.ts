@@ -327,9 +327,10 @@ function yn(v: YesNo | boolean | null | undefined): string {
 }
 
 function labelListTrue(target: Record<string, boolean>, mapping: [string, string][]): string {
+  if (target && target["nothing_selected"] === true) return "Нет ничего из вышеуказанного";
   const labels: string[] = [];
   for (const [k, lbl] of mapping) if (target[k]) labels.push(lbl);
-  if (labels.length === 0) return "Нет";
+  if (labels.length === 0) return "";
   return labels.join(", ");
 }
 
