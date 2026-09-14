@@ -11,7 +11,8 @@ const SYSTEM_PROMPT = `Ты — ассистент гинеколога-эндо
 4. Если спрашивают про конкретный препарат / аналог / дозировку / схему — строго отвечай шаблоном: «Подбор препарата, дозировки и схемы МГТ — исключительная прерогатива лечащего врача после полного обследования. Я не могу давать таких рекомендаций. Этот вывод носит предварительный характер и не заменяет очную консультацию врача. Окончательное решение принимает гинеколог-эндокринолог после обследования.»
 5. Сохраняй ВСЕ ключевые факты из исходного текста заключения: абсолютные противопоказания, показания (системная / топическая / остеопороз), окно терапевтических возможностей, онко-мониторинг, возможный негативный эффект, факторы риска. Ничего не удаляй и не добавляй лишнего медицинского контента.
 6. Тон — эмпатичный, спокойный, для женщины без медицинского образования. Не злоупотребляй сокращениями без пояснения (ГУМС — генитоуринальный синдром менопаузы, ЗГТ — заместительная гормональная терапия, МГТ — менопаузальная гормональная терапия, окно терапевтических возможностей — период, когда начинать МГТ безопаснее всего).
-7. Ответ ОБЯЗАТЕЛЬНО на русском языке.`;
+7. Ответ ОБЯЗАТЕЛЬНО на русском языке.
+8. Вместо фраз «начинать менопаузу», «начали менопаузу», «у вас началась менопауза» — ОБЯЗАТЕЛЬНО используй фразы «вступать в период менопаузы», «вступили в период менопаузы», «вы вступаете в период менопаузы». Никогда не используй слово «начали» в отношении менопаузы.`;
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -133,10 +134,21 @@ async function chatComplete(system: string, user: string, temp = 0.3, maxTokens 
 }
 
 export async function paraphraseVerdict(originalSummary: string): Promise<string> {
-  if (!isLlmAvailable()) return originalSummary;
+  if (!isLlmAvailable()) return fixMenopausePhrases(originalSummary);
   const user = `Ниже — готовое медицинское предварительное заключение по МГТ/ЗГТ. Его факты НЕ ИЗМЕНЯТЬ, ничего не добавлять и не удалять. Единственное, что нужно — перефразировать простым человеческим языком, сохранить структуру, все пункты и все медицинские факты (абсолютные противопоказания, показания, окно терапевтических возможностей, онко-мониторинг, возможный негативный эффект, факторы риска, ИМТ, стаж, тип менопаузы, дежурную оговорку в конце про очную консультацию врача — её ОБЯЗАТЕЛЬНО оставить, как есть или чуть перефразировать но смысл тот же).\n\nИСХОДНЫЙ ТЕКСТ:\n"""\n${originalSummary}\n"""`;
   const result = await chatComplete(SYSTEM_PROMPT, user, 0.3, 2000);
-  return result && result.length > originalSummary.length * 0.5 ? result : originalSummary;
+  if (result && result.length > originalSummary.length * 0.5) {
+    return fixMenopausePhrases(result);
+  }
+  return fixMenopausePhrases(originalSummary);
+}
+
+function fixMenopausePhrases(text: string): string {
+  return text
+    .replace(/вы только начали менопаузу/gi, "вы только вступили в период менопаузы")
+    .replace(/начали менопаузу/gi, "вступили в период менопаузы")
+    .replace(/начинается менопауза/gi, "вступаете в период менопаузы")
+    .replace(/началась менопауза/gi, "наступила менопауза");
 }
 
 export async function answerFollowup(question: string, stateSummary: string): Promise<string> {
@@ -148,12 +160,12 @@ export async function answerFollowup(question: string, stateSummary: string): Pr
 
   const user = `Контекст: предварительное заключение пациентки по МГТ:\n"""\n${stateSummary || "нет данных"}\n"""\n\nВопрос пациентки (ответь строго по правилам system-prompt):\n"""\n${question}\n"""`;
   const result = await chatComplete(SYSTEM_PROMPT, user, 0.2, 900);
-  if (!result || result.length < 20) return fallback;
+  if (!result || result.length < 20) return fixMenopausePhrases(fallback);
   if (!/не заменяет очную консультацию/.test(result) && !/не заменяет.*врач/.test(result)) {
     return (
-      result +
+      fixMenopausePhrases(result) +
       "\n\nЭтот вывод носит предварительный характер и не заменяет очную консультацию врача. Окончательное решение принимает гинеколог-эндокринолог после полного обследования."
     );
   }
-  return result;
+  return fixMenopausePhrases(result);
 }
