@@ -8,11 +8,16 @@ import { paraphraseVerdict, answerFollowup, isLlmAvailable } from "@/lib/llm";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function authOk(req: NextRequest) {
+function authOk(req: NextRequest): boolean {
   const expected = process.env.SALEBOT_SECRET;
-  if (!expected) return true;
-  const got = req.headers.get("X-Salebot-Secret") || req.headers.get("x-salebot-secret");
-  return got === expected;
+  if (!expected || expected.trim().length < 16) return false;
+  const got = req.headers.get("X-Salebot-Secret") || req.headers.get("x-salebot-secret") || "";
+  const a = Buffer.from(expected);
+  const b = Buffer.from(got);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
 type StepRequest = {
