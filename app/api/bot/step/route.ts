@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Answer } from "@/types/bot";
-import { advance, getFirstStep, asText } from "@/lib/engine/engine";
+import { advance, getFirstStep, asText, sessionToFlat24Answers } from "@/lib/engine/engine";
 import { STEPS } from "@/lib/engine/steps";
 import { getSession, setSession } from "@/lib/engine/sessions";
 import { paraphraseVerdict, answerFollowup, isLlmAvailable } from "@/lib/llm";
+import { appendSurveyResponse } from "@/lib/integrations/google-sheets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
   }
   if (!body?.sessionId) return NextResponse.json({ error: "sessionId required" }, { status: 400 });
 
-  const state = getSession(body.sessionId);
+  const state = await getSession(body.sessionId);
 
   if (body.stepId && body.stepId !== state.currentStepId) {
     // allow client sync
@@ -156,16 +157,38 @@ export async function POST(req: NextRequest) {
   }
 
   const result = advance(state, answer);
-  setSession(body.sessionId, result.newState);
+  await setSession(body.sessionId, result.newState);
 
   let summary = result.verdict?.summary || null;
   if (result.isFinal && result.verdict && body.useLlm !== false) {
     summary = await paraphraseVerdict(result.verdict.summary);
     (result.newState as any)._lastSummary = summary;
-    setSession(body.sessionId, result.newState);
+    await setSession(body.sessionId, result.newState);
   }
 
   if (result.isFinal) {
+    try {
+      const stateForSave = result.newState;
+      const flat = sessionToFlat24Answers(stateForSave);
+      const summary = result.verdict?.summary || "";
+      await appendSurveyResponse({
+        chat_id: (stateForSave as any).chat_id || (stateForSave as any).metadata?.chat_id || "",
+        tg_username: (stateForSave as any).metadata?.tg_username || "",
+        tg_first_name: (stateForSave as any).metadata?.tg_first_name || "",
+        session_id: body.sessionId,
+        step_count: stateForSave.completedStepIds.length,
+        is_final: true,
+        verdict_tag:
+          (result.verdict as any)?.tag ||
+          ((result.verdict as any)?.tags || []).join(",") ||
+          "salebot-final",
+        flat_answers_24: flat,
+        summary_engine: summary,
+        llm_paraphrase: body.useLlm !== false ? summary : undefined,
+      });
+    } catch (e) {
+      console.warn("google sheet save (salebot) exception:", e);
+    }
     return NextResponse.json({
       sessionId: body.sessionId,
       nextStepId: "final",

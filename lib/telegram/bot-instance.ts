@@ -8,6 +8,7 @@ import {
   getState,
   resetState,
   isLlmAvailable,
+  saveState,
 } from "./bot-core";
 
 let loadedEnv = false;
@@ -36,18 +37,18 @@ function buildBot(token: string): Bot {
   const bot = new Bot(token);
 
   bot.command("start", async (ctx) => {
-    const state = resetState(ctx.chat.id);
     const m = ctxMeta(ctx);
-    state.tgUsername = m.username; state.tgFirstName = m.firstName;
+    const state = await resetState(ctx.chat.id, m);
     await safeReply(ctx, welcomeMessage());
+    await saveState(state);
     await safeReply(ctx, askNext(state));
   });
 
   bot.command("reset", async (ctx) => {
-    const state = resetState(ctx.chat.id);
     const m = ctxMeta(ctx);
-    state.tgUsername = m.username; state.tgFirstName = m.firstName;
+    const state = await resetState(ctx.chat.id, m);
     await ctx.reply("🔄 Начинаем заново.");
+    await saveState(state);
     await safeReply(ctx, askNext(state));
   });
 
@@ -64,24 +65,29 @@ function buildBot(token: string): Bot {
   });
 
   bot.command("status", async (ctx) => {
-    const s = getState(ctx.chat.id, ctxMeta(ctx));
+    const m = ctxMeta(ctx);
+    const s = await getState(ctx.chat.id, m);
     await ctx.reply(
       `Шаг: ${s.session.currentStepId}\nПройдено шагов: ${s.session.completedStepIds.length}/24\nLLM-перефразировка: ${s.useLlm ? "✅" : "⛔"}\nFollow-up режим: ${s.inFollowup ? "да" : "нет"}`,
     );
   });
 
   bot.command("llm", async (ctx) => {
-    const s = getState(ctx.chat.id, ctxMeta(ctx));
+    const m = ctxMeta(ctx);
+    const s = await getState(ctx.chat.id, m);
     s.useLlm = !s.useLlm;
     const available = isLlmAvailable();
+    await saveState(s);
     await ctx.reply(
       `LLM-перефразировка: ${s.useLlm ? "включена" : "выключена"}\nКлюч LLM доступен: ${available ? "✅" : "⛔"} (${available ? "работает через API" : "будет шаблонный текст"})`,
     );
   });
 
   bot.command("stop", async (ctx) => {
-    const s = getState(ctx.chat.id, ctxMeta(ctx));
+    const m = ctxMeta(ctx);
+    const s = await getState(ctx.chat.id, m);
     s.inFollowup = false;
+    await saveState(s);
     await ctx.reply("✅ Готово. Follow-up режим выключен. /reset чтобы пройти опрос заново.");
   });
 
@@ -90,7 +96,8 @@ function buildBot(token: string): Bot {
       try { await ctx.answerCallbackQuery(); } catch { /* noop */ }
       return;
     }
-    const state = getState(ctx.chat.id, ctxMeta(ctx));
+    const m = ctxMeta(ctx);
+    const state = await getState(ctx.chat.id, m);
     let res: Awaited<ReturnType<typeof handleCallback>> = {};
     try {
       res = await handleCallback(state, ctx.callbackQuery.data);
@@ -117,9 +124,10 @@ function buildBot(token: string): Bot {
   });
 
   bot.on("message:text", async (ctx) => {
-    const state = getState(ctx.chat.id, ctxMeta(ctx));
+    const m = ctxMeta(ctx);
+    const state = await getState(ctx.chat.id, m);
     const messages = await handleText(state, ctx.message.text || "");
-    for (const m of messages) await safeReply(ctx, m);
+    for (const msg of messages) await safeReply(ctx, msg);
   });
 
   bot.catch((err) => {

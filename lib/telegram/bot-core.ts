@@ -3,8 +3,16 @@ import { advance, asBoolean, asMulti, asNumber, asObject, asText, createInitialS
 import { STEPS, STEP_FOLLOWUP } from "@/lib/engine/steps";
 import { paraphraseVerdict, answerFollowup, isLlmAvailable } from "@/lib/llm";
 import { appendSurveyResponse, type SurveySheetRow } from "@/lib/integrations/google-sheets";
+import { kvGet, kvSet, kvDel } from "@/lib/integrations/kv-store";
 
 type TgChatId = number | string;
+
+const TG_TTL_SEC = 60 * 60 * 12;
+const TG_PREFIX = "tg-state:";
+
+function tgKey(chatId: TgChatId): string {
+  return TG_PREFIX + String(chatId);
+}
 
 export interface TgUserState {
   chatId: TgChatId;
@@ -24,16 +32,11 @@ export interface TgUserState {
   menopauseStartedValue?: boolean;
 }
 
-const store = new Map<TgChatId, TgUserState>();
-
-export function getState(chatId: TgChatId, meta?: { username?: string; firstName?: string }): TgUserState {
-  const existing = store.get(chatId);
-  if (existing) {
-    if (meta?.username && !existing.tgUsername) existing.tgUsername = meta.username;
-    if (meta?.firstName && !existing.tgFirstName) existing.tgFirstName = meta.firstName;
-    return existing;
-  }
-  const s: TgUserState = {
+function createBlankState(
+  chatId: TgChatId,
+  meta?: { username?: string; firstName?: string },
+): TgUserState {
+  return {
     chatId,
     session: createInitialState(`tg-${chatId}`),
     pendingMultiSelections: {},
@@ -44,13 +47,42 @@ export function getState(chatId: TgChatId, meta?: { username?: string; firstName
     tgUsername: meta?.username,
     tgFirstName: meta?.firstName,
   };
-  store.set(chatId, s);
+}
+
+export async function getState(
+  chatId: TgChatId,
+  meta?: { username?: string; firstName?: string },
+): Promise<TgUserState> {
+  const k = tgKey(chatId);
+  const existing = (await kvGet<TgUserState>(k)) as TgUserState | null;
+  if (existing && typeof existing === "object" && existing.session) {
+    let changed = false;
+    if (meta?.username && !existing.tgUsername) {
+      existing.tgUsername = meta.username;
+      changed = true;
+    }
+    if (meta?.firstName && !existing.tgFirstName) {
+      existing.tgFirstName = meta.firstName;
+      changed = true;
+    }
+    if (changed) await kvSet(k, existing, TG_TTL_SEC);
+    return existing;
+  }
+  const s = createBlankState(chatId, meta);
+  await kvSet(k, s, TG_TTL_SEC);
   return s;
 }
 
-export function resetState(chatId: TgChatId): TgUserState {
-  store.delete(chatId);
-  return getState(chatId);
+export async function saveState(state: TgUserState): Promise<void> {
+  await kvSet(tgKey(state.chatId), state, TG_TTL_SEC);
+}
+
+export async function resetState(
+  chatId: TgChatId,
+  meta?: { username?: string; firstName?: string },
+): Promise<TgUserState> {
+  await kvDel(tgKey(chatId));
+  return getState(chatId, meta);
 }
 
 export interface TgResponseMessage {
@@ -106,7 +138,6 @@ export function askNext(state: TgUserState): TgResponseMessage {
       };
     }
   }
-
   const intro = `*${escapeMd(step.title || step.id)}*\n\n`;
   const q = escapeMd(step.question);
   const help = step.helpText ? `\n\n💡 ${escapeMd(step.helpText)}` : "";
@@ -149,14 +180,12 @@ function multiToggle(state: TgUserState, step: Step) {
   const sel = state.pendingMultiSelections;
   const regularOptions = options.filter((o) => o.key !== "nothing_selected");
   const nothingOption = options.find((o) => o.key === "nothing_selected");
-
   const rows = regularOptions.map((o) => [
     {
       text: (sel[o.key] ? "✅ " : "☐ ") + o.label,
       callback_data: `multi:${step.id}:${o.key}`,
     },
   ]);
-
   if (nothingOption) {
     rows.push([
       {
@@ -165,7 +194,6 @@ function multiToggle(state: TgUserState, step: Step) {
       },
     ]);
   }
-
   rows.push([
     { text: "Подтвердить ✓", callback_data: `multi:${step.id}:__ok__` },
     { text: "Очистить всё", callback_data: `multi:${step.id}:__clear__` },
@@ -205,14 +233,19 @@ function objectFieldButtons(state: TgUserState, step: Step) {
 
 export async function handleText(state: TgUserState, rawText: string): Promise<TgResponseMessage[]> {
   const text = rawText.trim();
-
   if (text === "/start" || text === "/reset") {
-    const ns = resetState(state.chatId);
-    return [welcomeMessage(), askNext(ns)];
+    const ns = await resetState(state.chatId, {
+      username: state.tgUsername,
+      firstName: state.tgFirstName,
+    });
+    const msgs = [welcomeMessage(), askNext(ns)];
+    await saveState(ns);
+    return msgs;
   }
   if (state.inFollowup) {
     if (text === "/stop") {
       state.inFollowup = false;
+      await saveState(state);
       return [
         {
           text: "✅ Готово. Спасибо, что воспользовались ботом. Не забудьте проконсультироваться с врачом на приёме!",
@@ -222,9 +255,7 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
     const answer = await answerFollowup(text, state.lastSummaryText || "");
     return [{ text: answer }];
   }
-
   const step = currentStep(state);
-
   if (step.id === "menopause_age") {
     // Sub-step 1 answer: Да/Ещё нет (кнопки или текст)
     if (!state.menopauseSubStep || state.menopauseSubStep === "ask_started") {
@@ -238,17 +269,16 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
         text.toLowerCase().includes("ещё нет") ||
         text.toLowerCase().includes("менструации идут") ||
         text.toLowerCase().includes("идут");
-
       // Если это не кнопка Да/Нет — может быть опечатка, показываем снова
       if (!isStarted && !isNotStarted) {
         return [askNext(state)];
       }
-
       state.menopauseStartedValue = isStarted;
       state.session.menopauseStarted = isStarted;
       if (isStarted) {
         // Sub-step 2: ask age
         state.menopauseSubStep = "ask_age";
+        await saveState(state);
         return [askNext(state)];
       }
       // Not started (Ещё нет): menopauseAge = current age (duration = 0)
@@ -258,6 +288,7 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
       }
       // Age missing (shouldn't happen, but safe fallback)
       state.menopauseSubStep = "ask_age";
+      await saveState(state);
       return [
         {
           text: "⚠️ Сначала укажите возраст (шаг 1). Нажмите /reset чтобы начать заново.",
@@ -278,12 +309,12 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
       return doAdvance(state, { type: "number", value: n });
     }
   }
-
   if (state.objectCurrentField) {
     const field = state.objectCurrentField;
     const schema = step.objectSchema?.[field];
     if (!schema) {
       state.objectCurrentField = undefined;
+      await saveState(state);
       return [askNext(state)];
     }
     if (schema.kind === "boolean") {
@@ -313,9 +344,9 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
       state.objectBuffer[field] = opt.key;
     }
     state.objectCurrentField = undefined;
+    await saveState(state);
     return [askNext(state)];
   }
-
   switch (step.answerType) {
     case "boolean": {
       const ans: Answer = { type: "boolean", value: text === "Да" };
@@ -362,7 +393,6 @@ export async function handleCallback(
   const kind = parts[0];
   const stepId = parts[1];
   const key = parts.slice(2).join(":");
-
   if (kind === "multi" && stepId && state.session.currentStepId === stepId) {
     if (key === "__ok__") {
       if (!state.awaitingMultiConfirm) return {};
@@ -374,6 +404,7 @@ export async function handleCallback(
     }
     if (key === "__clear__") {
       state.pendingMultiSelections = {};
+      await saveState(state);
       const edit = { text: currentStep(state).question, replyMarkup: replyMarkupFor(state, currentStep(state)) };
       return { edit };
     }
@@ -396,13 +427,13 @@ export async function handleCallback(
       state.pendingMultiSelections[key] = !state.pendingMultiSelections[key];
       if (!state.pendingMultiSelections[key]) delete state.pendingMultiSelections[key];
     }
+    await saveState(state);
     const edit: TgResponseMessage = {
       text: currentStep(state).question,
       replyMarkup: replyMarkupFor(state, currentStep(state)),
     };
     return { edit };
   }
-
   // BUG FIX 2026-09-10: __select MUST be checked BEFORE generic obj block
   // otherwise obj:stepId:__select:field:value hits step.objectSchema[key]=__select... (undefined) and returns {}
   if (kind === "obj" && stepId && state.session.currentStepId === stepId && key.startsWith("__select:")) {
@@ -415,9 +446,9 @@ export async function handleCallback(
       state.objectBuffer[fieldName] = value;
     }
     state.objectCurrentField = undefined;
+    await saveState(state);
     return { edit: { text: currentStep(state).question, replyMarkup: replyMarkupFor(state, currentStep(state)) } };
   }
-
   if (kind === "obj" && stepId && state.session.currentStepId === stepId) {
     const step = currentStep(state);
     if (key === "__noop__") return {};
@@ -431,6 +462,7 @@ export async function handleCallback(
     const schema = step.objectSchema?.[key];
     if (!schema) return {};
     state.objectCurrentField = key;
+    await saveState(state);
     if (schema.kind === "boolean") {
       return {
         answer: {
@@ -460,14 +492,12 @@ export async function handleCallback(
       },
     };
   }
-
   return {};
 }
 
 async function doAdvance(state: TgUserState, ans: Answer): Promise<TgResponseMessage[]> {
   const res = advance(state.session, ans);
   state.session = res.newState;
-
   if (res.isFinal && res.verdict && !state.savedFinalOnce) {
     let summary = res.verdict.summary;
     let llmText: string | undefined;
@@ -481,30 +511,26 @@ async function doAdvance(state: TgUserState, ans: Answer): Promise<TgResponseMes
     state.lastSummaryText = summary;
     state.inFollowup = true;
     state.savedFinalOnce = true;
-
-    // 📥 Сохраняем в Google Sheets — не блокируем пользователя (fire-and-forget)
-    (async function saveToSheet() {
-      try {
-        const row: SurveySheetRow = {
-          chat_id: state.chatId,
-          tg_username: state.tgUsername,
-          tg_first_name: state.tgFirstName,
-          session_id: state.session.sessionId,
-          step_count: state.session.completedStepIds.length,
-          is_final: true,
-          verdict_tag: (res.verdict as any).tag || (res.verdict!.tags || []).join(",") || "final",
-          answers: (state.session as any).answers || undefined,
-          flat_answers_24: sessionToFlat24Answers(state.session),
-          summary_engine: res.verdict!.summary,
-          llm_paraphrase: llmText,
-        };
-        const r = await appendSurveyResponse(row);
-        if (!r.ok) console.warn("google sheet save skipped:", r.error);
-        else console.log("✅ saved to google sheets, chat_id", state.chatId);
-      } catch (e) {
-        console.warn("google sheet save exception:", e);
-      }
-    })();
+    try {
+      const row: SurveySheetRow = {
+        chat_id: state.chatId,
+        tg_username: state.tgUsername,
+        tg_first_name: state.tgFirstName,
+        session_id: state.session.sessionId,
+        step_count: state.session.completedStepIds.length,
+        is_final: true,
+        verdict_tag: (res.verdict as any).tag || (res.verdict!.tags || []).join(",") || "final",
+        answers: (state.session as any).answers || undefined,
+        flat_answers_24: sessionToFlat24Answers(state.session),
+        summary_engine: res.verdict!.summary,
+        llm_paraphrase: llmText,
+      };
+      const r = await appendSurveyResponse(row);
+      if (!r.ok) console.warn("google sheet save skipped:", r.error);
+      else console.log("✅ saved to google sheets, chat_id", state.chatId);
+    } catch (e) {
+      console.warn("google sheet save exception:", e);
+    }
 
     const verdictText =
       "🧾 *ПРЕДВАРИТЕЛЬНОЕ ЗАКЛЮЧЕНИЕ* — только для обсуждения с вашим врачом\\. Не заменяет очный приём\\.\n\n" +
@@ -512,6 +538,7 @@ async function doAdvance(state: TgUserState, ans: Answer): Promise<TgResponseMes
       "\n\n" +
       `опишите, что именно вас беспокоит \\(тема: менопауза / МГТ / симптомы\\)\\. Введите /reset чтобы начать заново, /stop чтобы закончить\\.`;
 
+    await saveState(state);
     return [
       {
         text: verdictText,
@@ -523,6 +550,7 @@ async function doAdvance(state: TgUserState, ans: Answer): Promise<TgResponseMes
   if (res.nextStep) {
     state.session.currentStepId = res.nextStep.id;
   }
+  await saveState(state);
   return [askNext(state)];
 }
 
