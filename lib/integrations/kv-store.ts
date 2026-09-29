@@ -25,7 +25,22 @@ interface SheetSaveFinalRow {
 interface KvGetCmd { _action: "kv_get"; _key: string; }
 interface KvSetCmd { _action: "kv_set"; _key: string; _value: any; _ttl_sec?: number; }
 interface KvDelCmd { _action: "kv_del"; _key: string; }
-type SheetCmd = SheetSaveFinalRow | KvGetCmd | KvSetCmd | KvDelCmd;
+interface ProgressUpsertCmd {
+  _action: "progress_upsert";
+  source: "telegram" | "salebot";
+  id: string | number;
+  tg_username?: string;
+  tg_first_name?: string;
+  session_id: string;
+  step_count: number;
+  current_step_id: string;
+  is_final: boolean;
+  answers_flat: Record<string, string>;
+  verdict_tag?: string;
+  summary_engine?: string;
+  [k: string]: any;
+}
+type SheetCmd = SheetSaveFinalRow | KvGetCmd | KvSetCmd | KvDelCmd | ProgressUpsertCmd;
 
 const SHEET_SESSIONS_NAME = "Sessions";
 const SHEET_DATA_NAME = "Ответы";

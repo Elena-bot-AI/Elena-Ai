@@ -2,7 +2,7 @@ import type { SessionState, Step, Answer } from "@/types/bot";
 import { advance, asBoolean, asMulti, asNumber, asObject, asText, createInitialState, sessionToFlat24Answers } from "@/lib/engine/engine";
 import { STEPS, STEP_FOLLOWUP } from "@/lib/engine/steps";
 import { paraphraseVerdict, answerFollowup, isLlmAvailable } from "@/lib/llm";
-import { appendSurveyResponse, type SurveySheetRow } from "@/lib/integrations/google-sheets";
+import { appendSurveyResponse, upsertProgress, type SurveySheetRow } from "@/lib/integrations/google-sheets";
 import { kvGet, kvSet, kvDel } from "@/lib/integrations/kv-store";
 
 type TgChatId = number | string;
@@ -75,6 +75,29 @@ export async function getState(
 
 export async function saveState(state: TgUserState): Promise<void> {
   await kvSet(tgKey(state.chatId), state, TG_TTL_SEC);
+
+  // После каждого изменения состояния = обновляем лист «Прогресс»
+  // (даже если пользователь прошёл всего 1 шаг — мы его видим)
+  try {
+    const sess = state.session;
+    await upsertProgress({
+      source: "telegram",
+      id: state.chatId,
+      tg_username: state.tgUsername,
+      tg_first_name: state.tgFirstName,
+      session_id: sess.sessionId,
+      step_count: sess.completedStepIds.length,
+      current_step_id: sess.currentStepId || "start",
+      is_final: !!state.savedFinalOnce,
+      answers_flat: sessionToFlat24Answers(sess),
+      verdict_tag: state.lastSummaryText
+        ? undefined
+        : ((sess as any)._lastVerdictTag as string | undefined),
+      summary_engine: state.lastSummaryText,
+    });
+  } catch (e) {
+    console.warn("upsert progress (tg) exception:", e);
+  }
 }
 
 export async function resetState(
