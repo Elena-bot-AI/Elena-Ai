@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleUpdate } from "@/lib/telegram/bot-instance";
+import { kvGet, kvSet } from "@/lib/integrations/kv-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +59,23 @@ export async function POST(req: NextRequest, _ctx: { params: { slug?: string[] }
   }
   try {
     const update = await req.json();
+
+    // === IDEMPOTENCY: не даём обработать одно сообщение Telegram дважды
+    // Каждое update имеет уникальный update_id, запоминаем на 6 часов
+    if (typeof update?.update_id === "number") {
+      const lockKey = "tg-upd-lock:" + String(update.update_id);
+      const locked = await kvGet<boolean>(lockKey);
+      if (locked === true) {
+        console.warn("[telegram_webhook] idempotency: skip duplicate update_id", update.update_id);
+        return NextResponse.json({ ok: true, skipped: "idempotent" });
+      }
+      try {
+        await kvSet(lockKey, true, 60 * 60 * 6);
+      } catch {
+        // ignore
+      }
+    }
+
     const res = await handleUpdate({
       json: () => Promise.resolve(update),
       method: "POST",

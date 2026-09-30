@@ -76,28 +76,34 @@ export async function getState(
 export async function saveState(state: TgUserState): Promise<void> {
   await kvSet(tgKey(state.chatId), state, TG_TTL_SEC);
 
-  // После каждого изменения состояния = обновляем лист «Прогресс»
-  // (даже если пользователь прошёл всего 1 шаг — мы его видим)
-  try {
-    const sess = state.session;
-    await upsertProgress({
-      source: "telegram",
-      id: state.chatId,
-      tg_username: state.tgUsername,
-      tg_first_name: state.tgFirstName,
-      session_id: sess.sessionId,
-      step_count: sess.completedStepIds.length,
-      current_step_id: sess.currentStepId || "start",
-      is_final: !!state.savedFinalOnce,
-      answers_flat: sessionToFlat24Answers(sess),
-      verdict_tag: state.lastSummaryText
-        ? undefined
-        : ((sess as any)._lastVerdictTag as string | undefined),
-      summary_engine: state.lastSummaryText,
-    });
-  } catch (e) {
-    console.warn("upsert progress (tg) exception:", e);
-  }
+  // Сохранение прогресса в «Прогресс»-лист Google Sheets — фоновое, не блокируем.
+  // В serverless функциях ожидание этого запроса (2-3s Apps Script cold start)
+  // заставляет Telegram переотправлять Update → дубли шагов.
+  setImmediate(() => {
+    (async () => {
+      try {
+        const sess = state.session;
+        const { upsertProgress } = await import("@/lib/integrations/google-sheets");
+        await upsertProgress({
+          source: "telegram",
+          id: state.chatId,
+          tg_username: state.tgUsername,
+          tg_first_name: state.tgFirstName,
+          session_id: sess.sessionId,
+          step_count: sess.completedStepIds.length,
+          current_step_id: sess.currentStepId || "start",
+          is_final: !!state.savedFinalOnce,
+          answers_flat: sessionToFlat24Answers(sess),
+          verdict_tag: state.lastSummaryText
+            ? undefined
+            : ((sess as any)._lastVerdictTag as string | undefined),
+          summary_engine: state.lastSummaryText,
+        });
+      } catch (e) {
+        console.warn("upsert progress (tg) exception:", e);
+      }
+    })().catch(() => { /* noop */ });
+  });
 }
 
 export async function resetState(

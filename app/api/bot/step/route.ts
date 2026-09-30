@@ -159,22 +159,28 @@ export async function POST(req: NextRequest) {
   const result = advance(state, answer);
   await setSession(body.sessionId, result.newState);
 
-  try {
-    const st = result.newState;
-    await upsertProgress({
-      source: "salebot",
-      id: (st as any).chat_id || (st as any).metadata?.chat_id || body.sessionId,
-      tg_username: (st as any).metadata?.tg_username || "",
-      tg_first_name: (st as any).metadata?.tg_first_name || "",
-      session_id: body.sessionId,
-      step_count: st.completedStepIds.length,
-      current_step_id: st.currentStepId || "start",
-      is_final: !!result.isFinal,
-      answers_flat: sessionToFlat24Answers(st),
-    });
-  } catch (e) {
-    console.warn("upsert progress (salebot) exception:", e);
-  }
+  // Фоновое сохранение прогресса — не блокируем ответ пользователю.
+  // Если ждать Apps Script (2–3s), Salebot таймаутит и делает retry = дубли.
+  setImmediate(() => {
+    (async () => {
+      try {
+        const st = result.newState;
+        await upsertProgress({
+          source: "salebot",
+          id: (st as any).chat_id || (st as any).metadata?.chat_id || body.sessionId,
+          tg_username: (st as any).metadata?.tg_username || "",
+          tg_first_name: (st as any).metadata?.tg_first_name || "",
+          session_id: body.sessionId,
+          step_count: st.completedStepIds.length,
+          current_step_id: st.currentStepId || "start",
+          is_final: !!result.isFinal,
+          answers_flat: sessionToFlat24Answers(st),
+        });
+      } catch (e) {
+        console.warn("upsert progress (salebot) exception:", e);
+      }
+    })().catch(() => { /* noop */ });
+  });
 
   let summary = result.verdict?.summary || null;
   if (result.isFinal && result.verdict && body.useLlm !== false) {
