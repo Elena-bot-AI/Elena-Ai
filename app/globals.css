@@ -7,3 +7,17 @@ html, body {
   color: #0a0a0a;
   -webkit-font-smoothing: antialiased;
 }
+
+/* --- Лендинг доктора Елены — респонсив сетки как в City Stom --- */
+@media (max-width: 900px) {
+  .trust-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .program-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .who-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .pricing-grid { grid-template-columns: 1fr !important; }
+  .about-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 600px) {
+  .trust-grid { grid-template-columns: 1fr 1fr !important; }
+  .program-grid { grid-template-columns: 1fr !important; }
+  .who-grid { grid-template-columns: 1fr !important; }
+}
