@@ -170,14 +170,8 @@ export function askNext(state: TgUserState): TgResponseMessage {
   const intro = `*${escapeMd(step.title || step.id)}*\n\n`;
   const q = escapeMd(step.question);
   const help = step.helpText ? `\n\n💡 ${escapeMd(step.helpText)}` : "";
-  // Для multi-шагов (GUMS и т.д.) — добавляем в ТЕКСТ явное пояснение: как управлять, как подтвердить
-  // Потому что пользователи часто не видят/не понимают inline-кнопки и зависают.
-  const multiHint =
-    step.answerType === "multi"
-      ? `\n\n👉 *Как ответить:*\n1) Нажмите на галочки под этим сообщением (можно несколько или одну)\n2) Когда выбрали — нажмите внизу **«Подтвердить ✓»**\n\nЕсли вы хотите пропустить — просто нажмите на вариант **«Нет ничего из вышеуказанного»** и затем Подтвердить.\n_Альтернативно:_ просто напишите любым текстом _«ДАЛЕЕ»_ — я пойму, что у вас ничего из перечисленного нет.`
-      : "";
   return {
-    text: intro + q + help + multiHint,
+    text: intro + q + help,
     parseMode: "MarkdownV2",
     replyMarkup: replyMarkupFor(state, step),
   };
@@ -404,35 +398,9 @@ export async function handleText(state: TgUserState, rawText: string): Promise<T
       return doAdvance(state, { type: "text", value: text });
     }
     case "multi": {
-      // Умная обработка multi-шагов (GUMS, миома, риски и т.д.):
-      // Сценарии текстового ответа пользователя:
-      //   1) галок НЕТ → трактуем как «ничего»
-      //   2) галки ЕСТЬ + текст ДАЛЕЕ / дальше / Подтвердить → подтверждаем
-      //   3) галки ЕСТЬ + обычный текст → просим нажать Подтвердить (не убираем выбор)
-      const hasSel = Object.keys(state.pendingMultiSelections || {}).length > 0;
-      if (!hasSel) {
-        const ans: Answer = { type: "multi", value: { nothing_selected: true } };
-        return doAdvance(state, ans);
-      }
-      const t = text.toLowerCase();
-      const userSaysConfirm =
-        t === "далее" ||
-        t === "дальше" ||
-        t === "подтвердить" ||
-        t === "ок" ||
-        t === "окей" ||
-        t === "да" ||
-        t === "готово" ||
-        t.startsWith("подтв");
-      if (userSaysConfirm) {
-        const ans: Answer = { type: "multi", value: { ...state.pendingMultiSelections } };
-        state.pendingMultiSelections = {};
-        state.awaitingMultiConfirm = false;
-        return doAdvance(state, ans);
-      }
       return [
         {
-          text: "Отлично! Галки уже отмечены ✅\nНажмите **«Подтвердить ✓»** под сообщением выше, чтобы перейти к следующему шагу.\n\nЕсли не видите кнопки — просто напишите одним словом:\n`ДАЛЕЕ`  или  `ПОДТВЕРДИТЬ`",
+          text: "Пожалуйста, выберите вариант(ы) в inline-кнопках под сообщением выше и нажмите в конце **«Подтвердить ✓»**.",
           parseMode: "MarkdownV2",
         },
       ];
