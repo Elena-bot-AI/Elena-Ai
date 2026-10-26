@@ -425,7 +425,15 @@ export async function handleCallback(
   const key = parts.slice(2).join(":");
   if (kind === "multi" && stepId && state.session.currentStepId === stepId) {
     if (key === "__ok__") {
-      if (!state.awaitingMultiConfirm) return {};
+      // ❗ HARD BUG FIX 2026-10-26 (multi «Подтвердить ✓» молча проглатывался на ВСЕХ multi-шагах в проде):
+      // awaitingMultiConfirm выставляется в true только внутри multiToggle() НА ПАМЯТИ и ПОСЛЕ последнего saveState():
+      //   * doAdvance(): saveState() вызывается ДО askNext() (который зовёт multiToggle)
+      //   * toggle-ветка: saveState() вызывается ДО replyMarkupFor()
+      // Локально (polling) это маскируется тем, что mem-кэш хранит ОБЪЕКТ ПО ССЫЛКЕ, и поздняя мутация «протекает» в сток.
+      // На Vercel KV = Google Sheets: каждый callback перечитывает СЕРИАЛИЗОВАННУЮ копию, где флаг всегда false,
+      // поэтому `if (!state.awaitingMultiConfirm) return {};` съедал нажатие → бот молчал, шаг зависал.
+      // Кнопка «Подтвердить ✓» существует только на отрисованной multi-клавиатуре → нажатие всегда валидно.
+      // Пустой выбор = «ничего из перечисленного» (движок обрабатывает корректно).
       const ans: Answer = { type: "multi", value: { ...state.pendingMultiSelections } };
       state.pendingMultiSelections = {};
       state.awaitingMultiConfirm = false;
